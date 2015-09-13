@@ -30285,6 +30285,10 @@ var _firebase = require('firebase');
 
 var _firebase2 = _interopRequireDefault(_firebase);
 
+var _moment = require('moment');
+
+var _moment2 = _interopRequireDefault(_moment);
+
 var Landing = (function (_React$Component) {
   _inherits(Landing, _React$Component);
 
@@ -30300,10 +30304,68 @@ var Landing = (function (_React$Component) {
       }
     };
     this.fireRef = new _firebase2['default']('https://drank.firebaseio.com/');
+    this.lineRef = this.fireRef.child('line');
     this.usersRef = this.fireRef.child('users');
+    this.timerRef = this.fireRef.child('timer');
   }
 
   _createClass(Landing, [{
+    key: 'componentWillMount',
+    value: function componentWillMount() {
+      var _this = this;
+
+      this.lineRef.orderByChild('joinedAt').limitToFirst(1).on('value', function (data) {
+        if (!data.val()) {
+          _this.setState({
+            user: null,
+            startTime: null,
+            totalTime: null,
+            elapsedTime: null
+          });
+          return;
+        }
+        var userId = Object.keys(data.val())[0];
+        _this.usersRef.child(userId).once('value', function (data) {
+          var val = data.val();
+          _this.setState({
+            user: {
+              id: userId,
+              name: val.name,
+              profileImage: val.profileImage
+            }
+          });
+        });
+      });
+    }
+  }, {
+    key: 'componentDidMount',
+    value: function componentDidMount() {
+      var _this2 = this;
+
+      this.timerRef.on('child_changed', function (snapshot) {
+        console.log('TIMER CHILD CHANGED');
+        var timer = snapshot.val();
+        if (timer.startTime) {
+          _this2.setState({
+            startTime: timer.startTime,
+            totalTime: null
+          });
+        }
+        if (timer.totalTime) {
+          _this2.setState({
+            startTime: null,
+            totalTime: timer.totalTime
+          });
+        }
+      });
+      this.timer = setInterval(this.tick.bind(this), 100);
+    }
+  }, {
+    key: 'componentWillUnmount',
+    value: function componentWillUnmount() {
+      clearInterval(this.timer);
+    }
+  }, {
     key: 'render',
     value: function render() {
       return _react2['default'].createElement(
@@ -30323,27 +30385,49 @@ var Landing = (function (_React$Component) {
           'div',
           { id: 'body' },
           this.loginButton,
-          _react2['default'].createElement(_User2['default'], null)
+          this.user
         ),
         _react2['default'].createElement(_LeaderBoard2['default'], null),
         _react2['default'].createElement(_Line2['default'], { userId: this.state.user.id })
       );
     }
   }, {
+    key: 'tick',
+    value: function tick() {
+
+      if (this.state.startTime) {
+        console.log(Date.now() - this.state.startTime);
+        this.setState({
+          elapsedTime: Date.now() - this.state.startTime
+        });
+      }
+    }
+
+    // get loginButton() {
+    //   if (this.state.user.id) {
+    //     return;
+    //   }
+
+    //   return (
+    //     <button onClick={this.login.bind(this)}>Login with Facebook</button>
+    //   );
+    // }
+
+  }, {
     key: 'login',
     value: function login() {
-      var _this = this;
+      var _this3 = this;
 
       this.fireRef.authWithOAuthPopup('facebook', function (err, authData) {
         if (err) {
           console.log('login failed', err);
         } else {
           console.log(authData);
-          _this.usersRef.child(authData.facebook.id).set({
+          _this3.usersRef.child(authData.facebook.id).set({
             name: authData.facebook.displayName,
             profileImage: authData.facebook.profileImageURL
           });
-          _this.setState({
+          _this3.setState({
             user: {
               id: authData.facebook.id,
               name: authData.facebook.displayName,
@@ -30354,16 +30438,40 @@ var Landing = (function (_React$Component) {
       });
     }
   }, {
-    key: 'loginButton',
+    key: 'user',
     get: function get() {
-      if (this.state.user.id) {
-        return;
+      if (!this.state.user.id) {
+        return _react2['default'].createElement(
+          'div',
+          { onClick: this.login.bind(this), id: 'activeUser' },
+          _react2['default'].createElement('img', { src: "http://pickaface.net/avatar/ppic.jpg" }),
+          _react2['default'].createElement(
+            'h4',
+            null,
+            'Join the line!'
+          ),
+          _react2['default'].createElement(
+            'p',
+            null,
+            "00:00"
+          )
+        );
       }
-
+      var timeString = '' + _moment2['default'].duration(this.state.elapsedTime).seconds() + ' sec' + ' ' + _moment2['default'].duration(this.state.elapsedTime).milliseconds() + ' ms';
       return _react2['default'].createElement(
-        'button',
-        { onClick: this.login.bind(this) },
-        'Login with Facebook'
+        'div',
+        { id: 'activeUser' },
+        _react2['default'].createElement('img', { src: this.state.user.profileImage }),
+        _react2['default'].createElement(
+          'h4',
+          null,
+          this.state.user.name
+        ),
+        _react2['default'].createElement(
+          'p',
+          null,
+          timeString
+        )
       );
     }
   }], [{
@@ -30386,7 +30494,7 @@ var Landing = (function (_React$Component) {
 exports['default'] = Landing;
 module.exports = exports['default'];
 
-},{"./LastRun":204,"./LeaderBoard":205,"./Line":207,"./User":208,"firebase":3,"react":201}],204:[function(require,module,exports){
+},{"./LastRun":204,"./LeaderBoard":205,"./Line":207,"./User":208,"firebase":3,"moment":4,"react":201}],204:[function(require,module,exports){
 'use strict';
 
 Object.defineProperty(exports, '__esModule', {
@@ -30668,6 +30776,8 @@ var LeaderItem = (function (_React$Component) {
         );
       }
       var time = this.props.time;
+
+      time = parseInt(time, 10);
       var _state$user = this.state.user;
       var name = _state$user.name;
       var profileImage = _state$user.profileImage;
@@ -30908,110 +31018,8 @@ var User = (function (_React$Component) {
   }
 
   _createClass(User, [{
-    key: 'componentWillMount',
-    value: function componentWillMount() {
-      var _this = this;
-
-      this.lineRef.orderByChild('joinedAt').limitToFirst(1).on('value', function (data) {
-        if (!data.val()) {
-          _this.setState({
-            user: null,
-            startTime: null,
-            totalTime: null,
-            elapsedTime: null
-          });
-          return;
-        }
-        var userId = Object.keys(data.val())[0];
-        _this.usersRef.child(userId).once('value', function (data) {
-          var val = data.val();
-          _this.setState({
-            user: {
-              id: userId,
-              name: val.name,
-              profileImage: val.profileImage
-            }
-          });
-        });
-      });
-    }
-  }, {
-    key: 'componentDidMount',
-    value: function componentDidMount() {
-      var _this2 = this;
-
-      this.timerRef.on('child_changed', function (snapshot) {
-        console.log('TIMER CHILD CHANGED');
-        var timer = snapshot.val();
-        if (timer.startTime) {
-          _this2.setState({
-            startTime: timer.startTime,
-            totalTime: null
-          });
-        }
-        if (timer.totalTime) {
-          _this2.setState({
-            startTime: null,
-            totalTime: timer.totalTime
-          });
-        }
-      });
-      this.timer = setInterval(this.tick.bind(this), 100);
-    }
-  }, {
-    key: 'componentWillUnmount',
-    value: function componentWillUnmount() {
-      clearInterval(this.timer);
-    }
-  }, {
     key: 'render',
-    value: function render() {
-
-      if (!this.state.user) {
-        return _react2['default'].createElement(
-          'div',
-          { id: 'activeUser' },
-          _react2['default'].createElement('img', { src: "http://pickaface.net/avatar/ppic.jpg" }),
-          _react2['default'].createElement(
-            'h4',
-            null,
-            'Join the line!'
-          ),
-          _react2['default'].createElement(
-            'p',
-            null,
-            "00:00"
-          )
-        );
-      }
-      var timeString = '' + _moment2['default'].duration(this.state.elapsedTime).seconds() + ' sec' + ' ' + _moment2['default'].duration(this.state.elapsedTime).milliseconds() + ' ms';
-      return _react2['default'].createElement(
-        'div',
-        { id: 'activeUser' },
-        _react2['default'].createElement('img', { src: this.state.user.profileImage }),
-        _react2['default'].createElement(
-          'h4',
-          null,
-          this.state.user.name
-        ),
-        _react2['default'].createElement(
-          'p',
-          null,
-          timeString
-        )
-      );
-    }
-  }, {
-    key: 'tick',
-    value: function tick() {
-
-      if (this.state.startTime) {
-        console.log(Date.now() - this.state.startTime);
-        this.setState({
-          elapsedTime: Date.now() - this.state.startTime
-        });
-      }
-    }
+    value: function render() {}
   }], [{
     key: 'PropTypes',
     value: {},

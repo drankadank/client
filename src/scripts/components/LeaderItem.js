@@ -34,6 +34,7 @@ export default class LeaderItem extends React.Component {
       );
     }
     let { time } = this.props;
+    time = parseInt(time, 10);
     let { name, profileImage } = this.state.user;
     let timeString = '' + moment.duration(time).seconds() + ' sec'
                     + ' '
